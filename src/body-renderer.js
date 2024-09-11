@@ -32,7 +32,7 @@ export default class BodyRenderer {
         }).filter(index => index !== null);
 
         const computedStyle = getComputedStyle(this.bodyScrollable);
-
+        
         let config = {
             width: computedStyle.width,
             height: computedStyle.height,

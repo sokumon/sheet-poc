@@ -16,6 +16,7 @@
     --dt-selection-highlight-color: var(--dt-light-yellow);
     --dt-toast-message-border: none;
     --dt-header-cell-bg: var(--dt-cell-bg);
+    --dt-scroll-height: 40vw
 }
 
 .datatable {
@@ -30,7 +31,7 @@
 }
 
 .dt-scrollable {
-    height: 40vw;
+    height: var(--dt-scroll-height);
     overflow: auto;
     border-top: 2px solid var(--dt-border-color);
 

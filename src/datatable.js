@@ -38,6 +38,9 @@ class DataTable {
         this.prepare();
         this.initializeComponents();
 
+        if(this.options.fullHeight){
+            this.makeFullheight()
+        }
         if (this.options.data) {
             this.refresh();
             this.columnmanager.applyDefaultSortOrder();
@@ -78,6 +81,8 @@ class DataTable {
             options.events || {}
         );
         this.fireEvent = this.fireEvent.bind(this);
+
+        
     }
 
     prepare() {
@@ -262,6 +267,11 @@ class DataTable {
 
     translate(str, args) {
         return this.translationManager.translate(str, args);
+    }
+
+    makeFullheight(){
+        var r = document.querySelector(':root');
+        r.style.setProperty('--dt-scroll-height', '100vh');
     }
 }
 
