@@ -4,9 +4,13 @@ import {
     throttle,
     linkProperties,
     escapeHTML,
+    isEmpty,
+    appendObjectLocalStorage,
 } from './utils';
 import $ from './dom';
 import icons from './icons';
+// import {formulas} from './formula';
+// import {parse} from './parser'
 
 export default class CellManager {
     constructor(instance) {
@@ -22,8 +26,12 @@ export default class CellManager {
             'datamanager',
             'keyboard'
         ]);
-
         this.bindEvents();
+        this.formulaSuggest = $('.formula-suggest');
+        this.cellChoosingMode = false
+        this.cellContent = null
+        this.choosenCell = null
+        this.prevChoosenCell = null
     }
 
     bindEvents() {
@@ -32,7 +40,7 @@ export default class CellManager {
         this.bindKeyboardSelection();
         this.bindCopyCellContents();
         this.bindMouseEvents();
-        this.bindTreeEvents();
+        // this.bindTreeEvents();
     }
 
     bindFocusCell() {
@@ -43,6 +51,7 @@ export default class CellManager {
         this.$editingCell = null;
 
         $.on(this.bodyScrollable, 'dblclick', '.dt-cell', (e, cell) => {
+            if(this.cellChoosingMode) return;
             this.activateEditing(cell);
         });
 
@@ -56,7 +65,6 @@ export default class CellManager {
             }
         });
     }
-
     bindKeyboardNav() {
         const focusLastCell = (direction) => {
             if (!this.$focusedCell || this.$editingCell) {
@@ -144,6 +152,17 @@ export default class CellManager {
         });
 
         if (this.options.pasteFromClipboard) {
+            console.log(this.instance.options)
+            // this.$focusedCell.addEventListener("paste", (event) =>{
+            //     console.log("hello")
+            //     let paste = (event.clipboardData || window.clipboardData).getData("text/html");
+            //     this.pasteContentInCell(paste)
+            //     setTimeout(() => {
+            //         let paste = (event.clipboardData || window.clipboardData).getData("text/html");
+            //         this.pasteContentInCell(paste)
+            //     }, 10);
+            // })
+
             this.keyboard.on('ctrl+v', (e) => {
                 // hack
                 // https://stackoverflow.com/a/2177059/5353542
@@ -164,17 +183,32 @@ export default class CellManager {
         let mouseDown = null;
 
         $.on(this.bodyScrollable, 'mousedown', '.dt-cell', (e) => {
+            // if(this._selectedCells){
+            //     console.log("mouse down after selection")
+            //     // catch up with selected cells
+
+            // }
             mouseDown = true;
-            this.focusCell($(e.delegatedTarget));
+            if(this.cellChoosingMode){
+                this.chooseCell($(e.delegatedTarget))
+            }else{
+                this.focusCell($(e.delegatedTarget));       
+            }
         });
 
         $.on(this.bodyScrollable, 'mouseup', () => {
             mouseDown = false;
+            this.selectedCells = []
         });
 
         const selectArea = (e) => {
             if (!mouseDown) return;
-            this.selectArea($(e.delegatedTarget));
+            if(this.cellChoosingMode){
+                this.cellRangeSelection($(e.delegatedTarget))
+            }else{
+                this.selectArea($(e.delegatedTarget));
+            }
+
         };
 
         $.on(this.bodyScrollable, 'mousemove', '.dt-cell', throttle(selectArea, 50));
@@ -193,6 +227,51 @@ export default class CellManager {
         });
     }
 
+    cellRangeSelection($selectionCursor){
+        
+        if (this._selectArea(this.choosenCell, $selectionCursor)) {
+            // valid selection
+            this.$selectionCursor = $selectionCursor;
+        }
+        
+    }
+    chooseCell($cell){
+        if($cell === this.$editingCell){
+            console.trace()
+            return
+        }
+        const {
+            colIndex,
+            rowIndex,
+        } = $.data($cell);
+        if($cell == this.$editingCell) return
+        if(this.choosenCell){
+            this.choosenCell.classList.remove("dt-cell--cellSelected")
+        }
+        $cell.classList.add('dt-cell--cellSelected')
+
+        if(this.choosenCell){
+            if($cell !== this.choosenCell){
+                if(this._selectedCells.length > 1){
+                    this.cellRangeCleanUp(this._selectedCells)
+                    this._selectedCells = []
+                }else{
+                    this.choosenCell = null
+                }
+            }
+        }
+
+        const chooseEvent = new CustomEvent("chooseCell",{
+            detail: {
+                cell: [parseInt(colIndex), parseInt(rowIndex)]
+            }
+        })
+
+        this.instance.wrapper.dispatchEvent(chooseEvent)
+        this.choosenCell = $cell
+        
+    }
+
     focusCell($cell, {
         skipClearSelection = 0,
         skipDOMFocus = 0,
@@ -203,13 +282,24 @@ export default class CellManager {
         // don't focus if already editing cell
         if ($cell === this.$editingCell) return;
 
+
         const {
             colIndex,
+            rowIndex,
             isHeader
         } = $.data($cell);
         if (isHeader) {
             return;
         }
+
+        // if (this.currentCellEditor && this.cellChoosingMode) {
+        //     if($cell !== this.$editingCell){
+        //         let cellDetails = `=${(String.fromCharCode(64 + parseInt(colIndex)))}${parseInt(rowIndex) + 1}`;
+        //         this.currentCellEditor.setValue(cellDetails);
+                
+        //     }
+
+        // }
 
         const column = this.columnmanager.getColumn(colIndex);
         if (column.focusable === false) {
@@ -220,22 +310,38 @@ export default class CellManager {
             this.scrollToCell($cell);
         }
 
-        this.deactivateEditing();
+        if (!this.cellChoosingMode) {
+            this.deactivateEditing();
+        }
+
         if (!skipClearSelection) {
             this.clearSelection();
         }
 
-        if (this.$focusedCell) {
+        if (this.$focusedCell) {     
             this.$focusedCell.classList.remove('dt-cell--focus');
+            this.$focusedCell.classList.remove('dt-cell--cellSelected')
         }
 
         this.$focusedCell = $cell;
+        this.cellChoosingMode ? $cell.classList.add('dt-cell--cellSelected') : $cell.classList.add('dt-cell--focus');
         $cell.classList.add('dt-cell--focus');
+        
 
         if (!skipDOMFocus) {
             // so that keyboard nav works
             $cell.focus();
         }
+
+        const focusEvent = new CustomEvent("focusCell",{
+            detail: {
+                rowIndex: rowIndex,
+                colIndex: colIndex
+            }
+        })
+
+        this.instance.wrapper.dispatchEvent(focusEvent)
+
 
         this.highlightRowColumnHeader($cell);
     }
@@ -246,7 +352,6 @@ export default class CellManager {
         // remove cell border
         $cell.classList.remove('dt-cell--focus');
         this.$focusedCell = null;
-
         // reset header background
         if (this.lastHeaders) {
             this.lastHeaders.forEach(header => header && header.classList.remove('dt-cell--highlight'));
@@ -316,24 +421,126 @@ export default class CellManager {
     selectArea($selectionCursor) {
         if (!this.$focusedCell) return;
 
-        if (this._selectArea(this.$focusedCell, $selectionCursor)) {
-            // valid selection
-            this.$selectionCursor = $selectionCursor;
+        if(this.$editingCell == this.$focusedCell){
+            if (this._selectArea(this.choosenCell, $selectionCursor)) {
+                // valid selection
+                this.$selectionCursor = $selectionCursor;
+            }
+        }else{
+            // after cell range selection it was rehighlighting so this condition is added
+            if(this._selectedCells === null) return
+            if (this._selectArea(this.$focusedCell, $selectionCursor)) {
+                // valid selection
+                this.$selectionCursor = $selectionCursor;
+            }
         }
     }
+    
+    findSelectionDirection($cell1,$cell2){
+        // 
+        const cell1 = $.data($cell1);
+        const cell2 = $.data($cell2);
 
+        let rowIndex1 = parseInt(cell1.rowIndex)
+        let colIndex1 = parseInt(cell1.colIndex)
+        let rowIndex2 = parseInt(cell2.rowIndex)
+        let colIndex2 = parseInt(cell2.colIndex)
+        
+        if(rowIndex1 == rowIndex2){
+            return "Horizontal"
+        }else if(colIndex1 == colIndex2){
+            return "Vertical"
+        }else{
+            return { 
+                dir:"Diagonal",
+                width:Math.abs(colIndex2- colIndex1),
+                height: Math.abs(rowIndex2 -rowIndex1)
+            }
+        }
+    }
     _selectArea($cell1, $cell2) {
         if ($cell1 === $cell2) return false;
+        
+        if($cell1 === this.$editingCell) return false;
+        if($cell2 === this.$editingCell) return false;
+        // if($cell1 === this.$focusedCell) return false;
+        // if($cell2 === this.$focusedCell) return false;
 
         const cells = this.getCellsInRange($cell1, $cell2);
+        let direction = this.findSelectionDirection($cell1,$cell2)
+        const selectEvent = new CustomEvent("selectCells",{
+            detail: {
+                cellRange: $cell1,
+                cells: cells,
+                direction: direction
+            }
+        })
+
+        this.instance.wrapper.dispatchEvent(selectEvent)
+
         if (!cells) return false;
 
         this.clearSelection();
         this._selectedCells = cells.map(index => this.getCell$(...index));
+        // if(this._selectedCells.find(cell => cell === this.$editingCell)) return;
+        this.cellRangeCleanUp(this._selectedCells)
+
         requestAnimationFrame(() => {
-            this._selectedCells.map($cell => $cell.classList.add('dt-cell--highlight'));
+            if(this.cellChoosingMode) {
+                if(typeof direction !== "object"){
+                    this._selectedCells[0].classList.add(`dt-cell--cellRange-${direction}-Top`)
+                    this._selectedCells[this._selectedCells.length -1].classList.add(`dt-cell--cellRange-${direction}-Bottom`)
+                    this._selectedCells.slice(1,-1).map(cell => cell.classList.add(`dt-cell--cellRange-${direction}`))
+                }else{
+                    let corners = this.findCorners(this._selectedCells,direction.width,direction.height)
+                    let cornerDirs = ["Top","Right","Bottom","Left"]
+                    corners.forEach((corner,index) =>{
+                        corner.classList.add(`dt-cell--cellRange-DiagonalCorner-${cornerDirs[index]}`)
+                    })
+                    this._selectedCells.slice(1,direction.width).map(cell => cell.classList.add("dt-cell--cellRange-Diagonal-Top"))
+                    this._selectedCells.slice((this.selectedCells.length-1)- direction.width + 1, this.selectedCells.length-1).map(cell => cell.classList.add("dt-cell--cellRange-Diagonal-Bottom"))
+                    for (let index = direction.width + 1; index < this._selectedCells.length; index = index + (direction.width + 1) ) {
+                        if(index-1 > direction.width ){
+                            this._selectedCells[index - 1].classList.add("dt-cell--cellRange-Diagonal-Right")
+                        }
+                        if(index < this._selectedCells.length - direction.width - 1){
+                            this._selectedCells[index].classList.add("dt-cell--cellRange-Diagonal-Left")
+                        }
+                    }
+                }
+            }else{
+                // this was being called after cellSelection will checkout the issue later
+                this._selectedCells.map($cell => $cell.classList.add('dt-cell--highlight'));
+            }   
         });
         return true;
+    }
+
+    findCorners(cells,width,height){
+        // arr = [1,3,4,4,4,5,6,6,6]
+
+        let top = cells[0]
+        let bottom = cells[cells.length -1]
+        let right = cells[width]
+        let left = cells[cells.length - width - 1] 
+
+        return [top,right,bottom,left]
+    }
+    cellRangeCleanUp(cells){
+        let direction = ["Vertical", "Horizontal"]
+        let cornerDirs = ["Top","Right","Bottom","Left"]
+        cells.map((cell) =>{
+            cornerDirs.forEach((cornerDir) =>{
+                cell.classList.remove(`dt-cell--cellRange-Diagonal-${cornerDir}`)
+                cell.classList.remove(`dt-cell--cellRange-DiagonalCorner-${cornerDir}`)
+            })
+            direction.forEach(direction =>{
+                cell.classList.remove(`dt-cell--cellRange-${direction}-Top`)
+                cell.classList.remove(`dt-cell--cellRange-${direction}-Bottom`)
+                cell.classList.remove(`dt-cell--cellRange-${direction}`)
+            })
+        })
+
     }
 
     getCellsInRange($cell1, $cell2) {
@@ -429,6 +636,9 @@ export default class CellManager {
                 return;
             }
         }
+        let activatedCells = document.querySelectorAll('.dt-cell--editing');
+        if (activatedCells.length > 0) return;
+
 
         this.$editingCell = $cell;
         $cell.classList.add('dt-cell--editing');
@@ -437,18 +647,30 @@ export default class CellManager {
         $editCell.innerHTML = '';
 
         const editor = this.getEditor(colIndex, rowIndex, cell.content, $editCell);
+        const editEvent = new CustomEvent("activateEditing",{
+                detail: editor
+        })
+        this.instance.wrapper.dispatchEvent(editEvent)
+
 
         if (editor) {
             this.currentCellEditor = editor;
             // initialize editing input with cell value
             editor.initValue(cell.content, rowIndex, col);
+
         }
+
     }
 
     deactivateEditing(submitValue = true) {
+        if(this.choosenCell){
+            this.choosenCell.classList.remove("dt-cell--cellSelected")
+            this.cellRangeCleanUp(this._selectedCells)
+        }
         if (submitValue) {
             this.submitEditing();
         }
+
         // keep focus on the cell so that keyboard navigation works
         if (this.$focusedCell) this.$focusedCell.focus();
 
@@ -484,10 +706,17 @@ export default class CellManager {
             inside: parent
         });
 
+        $.on($input, 'input', '.dt-input', (e, editorElement) => {
+            const editEvent = new CustomEvent("cellEditing",{
+                detail: editorElement
+            })
+            this.instance.wrapper.dispatchEvent(editEvent)
+        });
+
         return {
             initValue(value) {
                 $input.focus();
-                $input.value = value;
+                $input.value = value ;
             },
             getValue() {
                 return $input.value;
@@ -501,25 +730,33 @@ export default class CellManager {
     submitEditing() {
         let promise = Promise.resolve();
         if (!this.$editingCell) return promise;
-
         const $cell = this.$editingCell;
         const {
             rowIndex,
             colIndex
         } = $.data($cell);
+
         const col = this.datamanager.getColumn(colIndex);
+        let cellValue = this.currentCellEditor.getValue();
 
         if ($cell) {
             const editor = this.currentCellEditor;
 
+            let cellValue = editor.getValue();
+            let key = `${String.fromCharCode(64 + parseInt(colIndex))}${parseInt(rowIndex) + 1}`;
+
+            if (!isEmpty(cellValue)) {
+                let sheetContent = {};
+                sheetContent[key] = cellValue;
+                // appendObjectLocalStorage('sheetdata', sheetContent);
+            }
+
             if (editor) {
                 let valuePromise = editor.getValue();
-
                 // convert to stubbed Promise
                 if (!valuePromise.then) {
                     valuePromise = Promise.resolve(valuePromise);
                 }
-
                 promise = valuePromise.then((value) => {
                     const oldValue = this.getCell(colIndex, rowIndex).content;
 
@@ -538,15 +775,26 @@ export default class CellManager {
                             this.updateCell(colIndex, rowIndex, oldValue);
                         });
                     }
+
+                    const event = new CustomEvent("cellSubmit",{
+                        detail:{
+                            rowIndex:rowIndex,
+                            colIndex:colIndex,
+                            value:cellValue
+                        }
+                    })
+                    
+                    this.instance.wrapper.dispatchEvent(event)
+            
                     return done;
                 });
             }
         }
-
+        this.choosenCell = null
+        this._selectedCells = null
         this.currentCellEditor = null;
         return promise;
     }
-
     copyCellContents($cell1, $cell2) {
         if (!$cell2 && $cell1) {
             // copy only focusedCell
@@ -589,7 +837,7 @@ export default class CellManager {
 
     pasteContentInCell(data) {
         if (!this.$focusedCell) return;
-
+        // paste data from google sheets
         const matrix = data
             .split('\n')
             .map(row => row.split('\t'))
@@ -611,6 +859,45 @@ export default class CellManager {
         });
     }
 
+    parseGoogleSheet(){
+        let copiedData = []
+
+        // Change this to div.childNodes to support multiple top-level nodes.
+        const parser = new DOMParser();
+        const doc1 = parser.parseFromString(data, "text/html")
+        let googlesheet = doc1.getElementsByTagName("google-sheets-html-origin")[0]
+        if(!googlesheet){
+            console.log("Not a valid google sheet paste ")
+            return
+        }
+        let table = doc1.getElementsByTagName("table")[0]
+        let tbody = table.getElementsByTagName("tbody")[0]
+
+        // no of trs is the height no of trs in tds is the width
+        console.log(tbody)
+        let rows = tbody.getElementsByTagName("tr")
+        console.log("No of rows in ", rows.length)
+
+        Array.from(rows).forEach((x, index) => {
+            let temp = {
+                "rowIndex": 0,
+                "colLength": 0,
+                "data":[]
+            }
+            let cols = x.getElementsByTagName("td")
+            console.log("No of cols in ", cols.length)
+            console.log(index + 1)
+            temp["rowIndex"] = index + 1
+            temp["colLength"] = cols.length
+            Array.from(cols).forEach(d => {
+                temp["data"].push = d.innerHTML
+            })
+
+            copiedData.push(temp)
+        })
+        return copiedData
+    }
+    
     activateFilter(colIndex) {
         this.columnmanager.toggleFilter();
         this.columnmanager.focusFilter(colIndex);
@@ -903,4 +1190,5 @@ export default class CellManager {
     static getCustomCellFormatter(cell) {
         return cell.format || (cell.column && cell.column.format) || null;
     }
+
 }

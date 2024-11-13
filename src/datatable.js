@@ -28,6 +28,7 @@ class DataTable {
             wrapper = document.querySelector(wrapper);
         }
         this.wrapper = wrapper;
+        this.$ = $
         if (!(this.wrapper instanceof HTMLElement)) {
             throw new Error('Invalid argument given for `wrapper`');
         }
@@ -37,16 +38,56 @@ class DataTable {
         this.buildOptions(options);
         this.prepare();
         this.initializeComponents();
+        this.refreshonWindowResize();
 
-        if(this.options.fullHeight){
-            this.makeFullheight()
+        this.initEngine()
+        if (this.options.fullHeight) {
+            this.makeFullheight();
+        }
+        if(this.options.reactive){
+            this.initReactivity()
         }
         if (this.options.data) {
             this.refresh();
             this.columnmanager.applyDefaultSortOrder();
         }
+
+
     }
 
+    initEngine(){
+        this.sengine =  new Engine()
+        
+    }
+
+    initReactivity(){
+        const that = this
+        const handler = {
+            get(target, key) {
+              if (key == 'isProxy')
+                return true;
+          
+              const prop = target[key];
+          
+              if (typeof prop == 'undefined')
+                return;
+          
+              if (!prop.isProxy && typeof prop === 'object')
+                target[key] = new Proxy(prop, handler);
+          
+              return target[key];
+            },
+            set(target, key, value) {
+          
+              target[key] = value;
+          
+              return true;
+            }
+          };
+
+        this.options.data = new Proxy(this.options.data, handler);
+    }
+    
     initializeTranslations(options) {
         this.language = options.language || 'en';
         this.translationManager = new TranslationManager(this.language);
@@ -82,7 +123,6 @@ class DataTable {
         );
         this.fireEvent = this.fireEvent.bind(this);
 
-        
     }
 
     prepare() {
@@ -93,7 +133,7 @@ class DataTable {
     initializeComponents() {
         let components = Object.assign({}, defaultComponents, this.options.overrideComponents);
         let {
-            Style,
+            // Style,
             Keyboard,
             DataManager,
             RowManager,
@@ -269,9 +309,42 @@ class DataTable {
         return this.translationManager.translate(str, args);
     }
 
-    makeFullheight(){
+    makeFullheight() {
         var r = document.querySelector(':root');
         r.style.setProperty('--dt-scroll-height', '100vh');
+    }
+
+    refreshonWindowResize() {
+        const that = this;
+        window.addEventListener('resize', function (event) {
+            that.refresh();
+        }, true);
+    }
+
+    startCellChoosing(){
+        this.cellmanager.cellChoosingMode = true
+    }
+
+    getCellChoosing(){
+        return this.cellmanager.cellChoosingMode
+    }
+
+    stopCellChoosing(){
+        this.cellmanager.cellChoosingMode = false
+    }
+
+    getCurrentCellEditor(){
+        this.cellmanager.currentCellEditor
+    }
+
+    getCellChoosen(){
+        return this.cellmanager.choosenCell
+    }
+
+    createFormulaSuggest(){
+        let formulaSuggest = document.createElement("div")
+        formulaSuggest.setAttribute("class","formula-suggest")
+        this.wrapper.appendChild(formulaSuggest)
     }
 }
 

@@ -165,3 +165,47 @@ export function escapeHTML(txt) {
 
     return String(txt).replace(/[&<>"'`=/]/g, (char) => escapeHtmlMapping[char] || char);
 };
+
+export function isEmpty(txt) {
+    return txt.length == 0;
+}
+
+export function appendObjectLocalStorage(key, data) {
+    let oldValue = JSON.parse(localStorage.getItem(key)) ;
+    let newValue = {};
+    if (oldValue == null) newValue = JSON.stringify(data);
+    else {
+        newValue = oldValue;
+        Object.assign(newValue, data);
+        newValue = JSON.stringify(newValue);
+    }
+
+    localStorage.setItem(key, newValue);
+}
+
+export function create2DarrayfromJSON(data, json_data) {
+    let oldData = json_data;
+    if (oldData != null) {
+        for (const [key, value] of Object.entries(oldData)) {
+            let indexes = key.match(/[a-zA-Z]+|[0-9]+/g);
+            let colIndex = indexes[0].charCodeAt(0) - 65;
+            let rowIndex = indexes[1] - 1;
+            console.log(value);
+            data[rowIndex][colIndex] = value;
+        }
+    }
+
+    return data;
+}
+
+export function removeNaN(values) {
+    const args = values.map((x) => {if (isNaN(x)) x = 0;});
+    console.log(args);
+    return args;
+}
+
+export function random_rgba() {
+    var o = Math.round, r = Math.random, s = 255;
+    return 'rgba(' + o(r()*s) + ',' + o(r()*s) + ',' + o(r()*s) + ',' + r().toFixed(1) + ')';
+}
+

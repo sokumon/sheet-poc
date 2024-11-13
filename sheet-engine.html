@@ -1,0 +1,703 @@
+<!-- include styles -->
+<link rel="stylesheet" href="./dist/frappe-datatable.min.css" />
+
+<!-- create the container element -->
+    <div id="datatable">
+
+    </div>
+
+    <!-- <button id="clear" onclick="clearSheet()">Clear</button> -->
+    <button id="merge" onclick="mergeCells()">Merge</button>
+    <div class="formula-suggest"></div>
+
+<style>
+    html, body {
+            margin: 0;
+            overflow: hidden !important;
+    }
+    #datatable{
+      height: 100%;
+      width: 100%;
+    }
+    #clear{
+        position: absolute;
+        top : 100px
+    } 
+    #merge{
+        position: absolute;
+        top : 10px
+    } 
+    .formula-suggest{
+        overflow-y: scroll;
+    }
+    .arg-suggest {
+        background-color: lightseagreen;
+    }
+</style>
+
+<!-- include the dependencies -->
+<!-- <script src="https://cdn.jsdelivr.net/npm/@formulajs/formulajs/lib/browser/formula.min.js"></script> -->
+<script src="./node_modules/sortablejs/Sortable.js"></script>
+<script src="/engine.js"></script>
+<script src="./dist/frappe-datatable.min.js"></script>
+
+<!-- <script src="test.js"></script> -->
+
+<!-- initialize DataTable -->
+<script >
+
+let sengine = new Engine()
+let workbook = sengine.createWorkBook("Untilted Spreadsheet")
+let sheetOne = workbook.addSheet()
+let data = sheetOne.initSheet()
+// loadData(data)
+let columns = createLetterHeadings();
+let cellSelector = false; // cellSelection UI 
+let formulaSuggest = document.getElementsByClassName('formula-suggest')[0];
+let datatable_wrapper = document.getElementById("datatable")
+let editor = null
+let editorProps = null
+let formulas = sengine.formulas
+let cellChoosing = false
+let suggestion = []
+let oldState = {}
+let selectedCells = []
+let cellContent = null
+let suggestions = sengine.argSuggestions
+
+
+
+function loadData(data){
+  let values = JSON.parse(localStorage.getItem("sheetData"))
+  for (const key of Object.keys(values)) {
+    // console.log(values[key])
+    console.log(`${key}`);
+    let index = a1torowcol(key)
+    console.log(index)
+    data[index.row][index.col -1] = values[key].value
+  } 
+  return data
+}
+
+const hasKey = (obj, key) => 
+    Object.keys(obj).includes(key) ||
+    Object.values(obj)
+      .filter(it => typeof it === "object" && it !== null)
+      .some(it => hasKey(it, key));
+
+const datatable = new DataTable('#datatable', {
+  columns: columns,
+  data: data,
+  fullHeight: true,
+  inlineFilters: true,
+  reactive: true,
+  cellHeight:25
+});
+
+let celltest = getCellfromA1("A1")
+let cellWidth = parseInt(getComputedStyle(celltest).width)
+
+let styles = {}
+
+function addStyles(cellKey, style, values){
+    switch(style){
+      case "merge":
+        let direction = datatable.cellmanager.findSelectionDirection(cellKey,values)
+        let startIndex = getIndexfromHTML(cellKey)
+        let startkey = rowcolToA1(startIndex.row,startIndex.col)
+        let endIndex = getIndexfromHTML(values)
+        let endkey = rowcolToA1(endIndex.row, endIndex.col)
+        if(styles[startkey]){
+            styles[startkey]["merged"] = {
+                end: endkey,
+                direction: direction
+            }
+        } else {
+            styles[startkey] = {
+                merged: {
+                    end: endkey,
+                    direction: direction
+                }
+            }
+        }
+        break;
+      case "textAlign":
+      if(styles[cellKey]){
+            styles[cellKey]["textAlign"] = values
+            console.log("Styles")
+            console.log(styles)
+        } else {
+            styles[cellKey] = {
+                textAlign: values
+        }
+        console.log("Styles")
+        console.log(styles)
+        }
+        break;
+      case "textDecoration":
+      
+      if(styles[cellKey]){
+            styles[cellKey]["textDecoration"] = values
+            console.log("Styles")
+            console.log(styles)
+        } else {
+            styles[cellKey] = {
+                textDecoration: []
+        }
+        styles[cellKey]["textDecoration"] = values
+        console.log("Styles")
+        console.log(styles)
+        }
+        break;
+      case "fontStyle":
+      if(styles[cellKey]){
+            styles[cellKey]["fontStyle"] = values
+            console.log("Styles")
+            console.log(styles)
+        } else {
+            styles[cellKey] = {
+                fontStyle: values
+        }
+        console.log("Styles")
+        console.log(styles)
+        }
+        break;
+      case "fontWeight":
+      if(styles[cellKey]){
+            styles[cellKey]["fontWeight"] = values
+            console.log("Styles")
+            console.log(styles)
+        } else {
+            styles[cellKey] = {
+                textAlign: values
+        }
+        console.log("Styles")
+        console.log(styles)
+        }
+        break;
+      case "backgroundColor":
+      if(styles[cellKey]){
+            styles[cellKey]["backgroundColor"] = values
+            console.log("Styles")
+            console.log(styles)
+        } else {
+            styles[cellKey] = {
+                backgroundColor: values
+        }
+        console.log("Styles")
+        console.log(styles)
+        }
+        break;
+      case "border":
+        let borderDirection = datatable.cellmanager.findSelectionDirection(cellKey,values)
+        let borderStartIndex = getIndexfromHTML(cellKey)
+        let borderStartKey = rowcolToA1(borderStartIndex.row,borderStartIndex.col)
+        let borderEndIndex = getIndexfromHTML(values)
+        let borderEndKey = rowcolToA1(borderEndIndex.row, borderEndIndex.col)
+        if(styles[borderStartKey]){
+            styles[borderStartKey]["border"] = {
+                end: borderEndKey,
+                direction: borderDirection
+            }
+        } else {
+            styles[borderStartKey] = {
+                border: {
+                    end: borderEndKey,
+                    direction: borderDirection
+                }
+            }
+        }
+        break;
+    }
+}
+
+function mergeCells(){
+  let cellsToMerge = []
+  if(datatable.cellmanager._selectedCells.length > 0){
+        cellsToMerge = datatable.cellmanager._selectedCells
+        addStyles(cellsToMerge[0],"merge",cellsToMerge[cellsToMerge.length -1])
+  }
+  drawStyles()
+}
+
+function alignCell(cellkey,alignment){
+  let cell = null
+  if(!datatable.cellmanager.$focusedCell && arguments.length === 1) return
+  if(arguments.length === 1 ){
+    cell = datatable.cellmanager.$focusedCell
+    alignment = arguments[0]
+  }else if(arguments.length === 2){
+    console.log("hello")
+    cell = getCellfromA1(arguments[0])
+    alignment = arguments[1]
+  }
+  let index = getIndexfromHTML(cell)
+  let key = rowcolToA1(index.row,index.col)
+  console.log(alignment)
+  cell.style.textAlign = alignment
+  addStyles(key,"textAlign", alignment)
+}
+
+function decorateCell(decoration) {
+  let cell = null;
+  
+  if (!datatable.cellmanager.$focusedCell && arguments.length === 1) return;
+  
+  if (arguments.length === 1) {
+    cell = datatable.cellmanager.$focusedCell;
+    if (!Array.isArray(decoration)) {
+      decoration = [decoration];
+    }
+  } else if (arguments.length === 2) {
+    cell = getCellfromA1(arguments[0]);
+    decoration = [arguments[1]];
+}
+  
+
+  if (!cell) return;
+  
+  let index = getIndexfromHTML(cell);
+  let key = rowcolToA1(index.row, index.col);
+  
+  try{
+    // get Previous decoration
+    let prevDecoration = getStyle(key,"textDecoration")
+    decoration.push.apply(decoration,prevDecoration)
+  }catch{
+    console.log("big error")
+  }
+
+  addStyles(key, "textDecoration", decoration);
+
+  decoration.forEach(d => {
+    if (d === "underline") {
+      cell.style.textDecoration = "underline";
+    } else if (d === "bold") {
+      if (!cell.children[0].innerHTML.includes("<b>")) {
+        cell.children[0].innerHTML = `<b>${cell.children[0].innerHTML}</b>`;
+      }
+    } else if (d === "italic") {
+      if (!cell.children[0].innerHTML.includes("<i>")) {
+        cell.children[0].innerHTML = `<i>${cell.children[0].innerHTML}</i>`;
+      }
+    }
+  });
+  
+
+}
+
+function getStyle(key,prop){
+  return styles[key][prop]
+}
+
+
+function colorBGCell(color){
+  let cell = null
+  if(!datatable.cellmanager.$focusedCell && arguments.length === 1) return
+  if(arguments.length === 1 ){
+    cell = datatable.cellmanager.$focusedCell
+    color = arguments[0]
+  }else if(arguments.length === 2){
+    cell = getCellfromA1(arguments[0])
+    color= arguments[1]
+  }
+  let index = getIndexfromHTML(cell)
+  let key = rowcolToA1(index.row,index.col)
+  cell.style.backgroundColor = color
+  addStyles(key,"backgroundColor", color)
+}
+
+function borderCell(cells){
+    let cellsToBorder = []
+    if(datatable.cellmanager._selectedCells){
+          cellsToBorder = datatable.cellmanager._selectedCells
+          addStyles(cellsToBorder[0],"border",cellsToBorder[cellsToBorder.length -1])
+    }else{
+      cellsToBorder = cells
+      console.log("cells are redrawing", cells)
+    }
+
+    cellsToBorder.forEach(cell =>
+      cell.style.borderColor = "black"
+    )
+    // draw the border
+    
+
+
+}
+
+
+function drawStyles(){
+  if(Object.keys(styles).length == 0) return
+  let startCells = Object.keys(styles)
+  console.log(startCells)
+  for(let i = 0; i < startCells.length; i++){
+      console.log(styles[startCells[i]])
+      if(styles[startCells[i]].merged){
+        let cells = fetchMergeCells(startCells[i],styles[startCells[i]].merged.end)
+        drawMergedCells(cells)
+      }else if (styles[startCells[i]].textAlign){
+        alignCell(startCells[i],styles[startCells[i]].textAlign)
+      }else if (styles[startCells[i]].textDecoration){
+        decorateCell(startCells[i],styles[startCells[i]].textDecoration)
+      }else if (styles[startCells[i]].backgroundColor){
+        colorBGCell(startCells[i],styles[startCells[i]].backgroundColor)
+      }else if(styles[startCells[i]].border){
+        let cells = fetchMergeCells(startCells[i],styles[startCells[i]].border.end)
+        borderCell(cells)
+      }
+  }
+}
+
+
+function fetchMergeCells(startKey,endKey){
+  let mergedCells = []
+  let startCell = getCellfromA1(startKey)
+  let endCell = getCellfromA1(endKey)
+  console.log(startKey, endKey)
+  mergedCells = datatable.cellmanager.getCellsInRange(startCell, endCell)
+  mergedCells = mergedCells.map(index => datatable.cellmanager.getCell$(...index))
+  return mergedCells 
+}
+
+
+function drawMergedCells(cellstoDraw){
+    if(cellstoDraw){
+        let mainCell = cellstoDraw[0]
+        let direction = datatable.cellmanager.findSelectionDirection(cellstoDraw[0], cellstoDraw[cellstoDraw.length - 1])
+        console.log(cellstoDraw)
+        switch(direction){
+            case "Vertical": 
+                let totalHeight = datatable.options.cellHeight * cellstoDraw.length
+                mainCell.style.height = totalHeight + "px"
+                mainCell.style.zIndex = 1
+                break;
+            case "Horizontal":
+                console.log(cellstoDraw.length)
+                let totalWidth = cellWidth * cellstoDraw.length
+                console.log(totalWidth)
+                mainCell.style.width= `${totalWidth}px`
+                for(let i = 1; i < cellstoDraw.length; i++){
+                    cellstoDraw[i].style.display = "none"
+                }
+                for(let i = 0; i < mainCell.children.length; i++){
+                    mainCell.children[i].style.width = `${totalWidth}px`
+                }
+                break;
+            default:
+                console.log(direction)
+                if(direction.dir == "Diagonal"){
+                  let totalHeightDiagonal = datatable.options.cellHeight * (direction.height +1)
+                  let totalWidthDiagonal = cellWidth * (direction.width+1)
+                  for(let i = 1; i < cellstoDraw.length; i++){
+                      cellstoDraw[i].style.display = "none"
+                  }
+                  for(let i = 0; i < mainCell.children.length; i++){
+                      mainCell.children[i].style.width = `${totalWidthDiagonal}px`
+                  }
+                  mainCell.style.height = totalHeightDiagonal + "px"
+                  mainCell.style.zIndex = 1
+                }
+                break;
+        }
+    }
+}
+
+
+
+
+function getCellfromA1(cellKey){
+    let cellIndex = a1torowcol(cellKey);
+    let cell = getCellviaRowCol(cellIndex.row,cellIndex.col)
+    return cell
+}
+
+function getIndexfromHTML(cell){
+      let {rowIndex,colIndex } = datatable.$.data(cell)
+      return {
+        row: rowIndex,
+        col: colIndex
+      }
+}
+
+
+// function alignLeft(){
+//     alignLeftCells.forEach(key => {
+//       let index = a1torowcol(key)
+//       let cell = document.querySelector(`[data-row-index="${index.row}"][data-col-index="${index.col}"]`)
+//       if(cell){
+//         cell.style.textAlign = "left"
+//       }
+//       }
+//     )
+// }
+
+
+datatable_wrapper.addEventListener("cellSubmit",function(event){
+  datatable.stopCellChoosing()
+  console.log(event.detail)
+  let key = rowcolToA1(parseInt(event.detail.rowIndex),parseInt(event.detail.colIndex))
+  sheetOne.addCell(key,event.detail.value)
+
+  sheetOne.flush()
+  datatable.refresh()
+  drawStyles()
+  // datatable.cellmanager.updateCell(parseInt(event.detail.colIndex), parseInt(event.detail.rowIndex),data[parseInt(event.detail.rowIndex)][parseInt(event.detail.colIndex) -1], true)
+  sheetOne.addtoLocalStorage()
+  let cell = sheetOne.getCell(key)
+  editor = null
+})
+
+datatable_wrapper.addEventListener("focusCell", function(event){
+  let cellIndex =  event.detail
+  let choosenKey = rowcolToA1(cellIndex.rowIndex,cellIndex.colIndex)
+  let cell = sheetOne.getCell(choosenKey)
+  // if(cell){
+  //   console.log(cell)
+  // }
+})
+datatable_wrapper.addEventListener("cellEditing",function(event){
+    editor = event.detail
+    let value = editorProps.getValue()
+    if(value.charAt(0) === "="){
+        cellContent = editorProps.getValue()
+        if(datatable.getCellChoosen()){
+          suggestFormula(editor)
+        }else{
+          datatable.startCellChoosing()
+          suggestFormula(editor)
+        }
+    }else{
+        datatable.stopCellChoosing()
+    }
+})
+
+datatable_wrapper.addEventListener("activateEditing", function(event){
+    editorProps = event.detail
+})
+
+datatable_wrapper.addEventListener("selectCells",function(event){
+    selectedCells = event.detail.cells
+    let startCell = rowcolToA1(selectedCells[0][1],selectedCells[0][0])
+
+    let endCell = rowcolToA1(selectedCells[selectedCells.length - 1][1],selectedCells[selectedCells.length - 1][0])
+
+    if(editor){
+      editorProps.setValue(`${cellContent}${startCell}:${endCell}`)
+    }
+})
+
+datatable_wrapper.addEventListener("chooseCell",function(event){
+  let choosenCell = event.detail.cell;
+  let key = rowcolToA1(choosenCell[1],choosenCell[0])
+  editorProps.setValue(`${cellContent}${key}`)
+})
+
+function suggestFormula(editor) {
+    let value = editor.value
+    if (value.length > 1) {
+        // display the ui for
+        let parentElementPosition = editor.parentElement.getBoundingClientRect();
+        let allAvalibleFormulas = Object.keys(formulas);
+        let searchTerm = editor.value.replace('=', '').toLowerCase().split("(")[0];
+        let searchRegex = new RegExp(`^${searchTerm}`,"i");
+        const matches = allAvalibleFormulas.filter(value => searchRegex.test(value));
+        // console.log(matches);
+        if (matches.length > 0) {
+            let tokens = sheetOne.scan(value.replace("=",""))
+            console.log(tokens)
+            let openBracket = tokens.find(token => token.type === 17)
+            let closeBracket = tokens.find(token=> token.type === 18)
+            if(closeBracket){
+              toggleFormulaSuggest(false)
+            }
+            console.log(openBracket)
+            if(openBracket){
+                formulaSuggest.style.width = "500px"
+                formulaSuggest.style.height = "20px"
+                let options = suggestions.filter(el => {
+                    return searchRegex.test(el.name)
+                })
+                console.log(options)
+                if(options.length > 0){
+                    console.log(value)
+                    console.log(options[0])
+                    createSuggestion(options[0])
+                    let noofCommas = tokens.find(token => token.type === 22)
+                    suggestArgs(value,noofCommas)
+                }
+            }else{
+              if(oldState){
+                formulaSuggest.style.width = oldState.width
+                formulaSuggest.style.height = oldState.height
+              }
+              let settings = {
+                  left: parentElementPosition.left,
+                  top: parentElementPosition.top,
+                  height: parentElementPosition.height
+              };
+
+              formulaSuggest.innerHTML = '';
+              toggleFormulaSuggest(true, settings);
+              matches.forEach(match =>{
+                  let formulaList = this.getFormula(match, formulas[match].desc);
+                  // add a click event listner for actaully choosing the suggestion
+                  formulaList.addEventListener('click', event =>{
+                      formulaChooser(event, editor);
+                  });
+                  formulaSuggest.appendChild(formulaList);
+              });
+              let style = getComputedStyle(formulaSuggest)
+              oldState = {
+                width: style.width,
+                height: style.height
+              }
+            }
+        } else {
+            formulaSuggest.innerHTML = '';
+            this.toggleFormulaSuggest(false);
+        }
+    } else {
+        formulaSuggest.innerHTML = '';
+        this.toggleFormulaSuggest(false);
+    }
+  }
+
+
+
+function toggleFormulaSuggest(show, settings) {
+  if (show) {
+            settings['display'] = 'block';
+            let formulaSuggestBoxPos = {
+                top: settings.top + settings.height,
+                left: settings.left,
+                display: 'block'
+            };
+            datatable.$.style(formulaSuggest, formulaSuggestBoxPos);
+        } else {
+            datatable.$.style(formulaSuggest, { display: 'none'});
+        }
+
+    }
+
+
+function formulaChooser(event, editor) {
+        cellContent = `=${formulas[event.target.id].completion}`;
+        editorProps.setValue(cellContent)
+}
+
+function getFormula(formulaName, formulaDesc) {
+        let div = document.createElement('div');
+        div.setAttribute('class', 'formula');
+        div.setAttribute('id', formulaName);
+        let name = document.createTextNode(formulaName);
+        div.appendChild(name);
+        let inside_div = document.createElement('div');
+        let para = document.createElement('p');
+        para.setAttribute('class', 'formula-description');
+        para.textContent = formulaDesc;
+        inside_div.appendChild(para);
+
+        let hr = document.createElement('hr');
+        inside_div.appendChild(hr);
+        div.appendChild(inside_div);
+        return div;
+}
+datatable_wrapper.addEventListener("paste", (event) => {
+  console.log("hello")
+  // if "text/html" in event.clipboardData.types
+  // console.log(event.clipboardData.types.includes("text/html"))
+  // // let paste = (event.clipboardData || window.clipboardData).getData("text/html");
+  // // console.log(paste)
+
+})
+
+
+
+function createLetterHeadings() {
+  let columns = [];
+  for (let n = 0; n < 26; n++) {
+    columns.push({
+      name: String.fromCharCode(65 + n),
+      width: 100,
+      dropdown: false,
+    });
+  }
+  return columns;
+}
+
+
+
+function a1torowcol(cell){
+    return {
+      row : parseInt(cell.replace(/\D/g, "")) - 1,
+      col : cell.charCodeAt(0) - 64
+    }
+}
+
+function rowcolToA1(row,col){
+    row = parseInt(row)
+    col = parseInt(col)
+    return `${String.fromCharCode(64+col)}${row+1}`
+}
+
+
+
+function clearLocalStorage() {
+  localStorage.clear();
+  console.log("Local storage cleared.");
+}
+
+function clearSheet() {
+  // Populate with empty data and refresh the datatable
+  clearLocalStorage();
+  window.location.reload()
+}
+
+// async function loadSuggestion(){
+//     let response = await fetch("/completion.json");
+//     let jsonObject = await response.json();
+//     localStorage.setItem("suggestion",JSON.stringify(jsonObject))
+// }
+
+function createSuggestion(test){
+         formulaSuggest.innerHTML = ""
+         let fName = document.createTextNode(`${test["name"]}(`)
+         formulaSuggest.appendChild(fName)
+         for(let i=0;i < test.parameters.length ; i++){
+               let span = document.createElement("span")
+               span.innerText = test.parameters[i].name + ','
+               if(i == test.parameters.length -1 ){
+                  span.innerText = test.parameters[i].name 
+               }
+            
+               formulaSuggest.appendChild(span)
+         }
+         let cParen = document.createTextNode(")")
+         formulaSuggest.appendChild(cParen)
+}
+
+function suggestArgs(value,noofCommas){
+            console.log(noofCommas)
+            var matches = value.match(/,/g);
+            console.log("Number of comman")
+            let children = Array.prototype.slice.call(formulaSuggest.children)
+            children.map(child => child.classList.remove("arg-suggest"))
+            if(!matches){
+                console.log("No comma")
+                children[0].classList.add("arg-suggest")
+            }else{
+               children[matches.length].classList.add("arg-suggest")
+            }
+}
+window.onload = function(){
+  console.log("Sheet is loading")
+}
+
+
+function getCellviaRowCol(row,col){
+  return document.querySelector(`[data-row-index="${row}"][data-col-index="${col}"]`)
+}
+
+
+</script>

@@ -53,6 +53,14 @@ export default class Style {
                 $.style(this.header, {
                     transform: `translateX(${left}px)`
                 });
+                let rowIndex = document.querySelectorAll('[data-col-index="0"]')
+                rowIndex.forEach(one => {
+                    $.style(one, {
+                        left:`${-left}px`,
+                        "z-index": 10,
+                        "border-right": "1px solid #d1d8dd"
+                    });
+                })
                 $.style(this.footer, {
                     transform: `translateX(${left}px)`
                 });
@@ -288,6 +296,7 @@ export default class Style {
                 if (!['left', 'center', 'right'].includes(column.align)) {
                     column.align = 'left';
                 }
+                column.align = "center"
                 this.setStyle(`.dt-cell--col-${column.colIndex}`, {
                     'text-align': column.align
                 });
