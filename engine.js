@@ -23122,26 +23122,6 @@
 	    Errors["WrongParameterType"] = "Type for the paramemeter doesnt match";
 	    Errors["CircularDependencyError"] = "Theres a circular dependency";
 	})(Errors || (Errors = {}));
-	({
-	    cells: {
-	        'a1': {
-	            value: '1',
-	            type: TokenTypes.Number,
-	        },
-	        'a2': {
-	            value: '2',
-	            type: TokenTypes.Number,
-	        },
-	        'b1': {
-	            value: '3',
-	            type: TokenTypes.Number,
-	        },
-	        'b2': {
-	            value: '=SUM(a1, a2)',
-	            type: TokenTypes.Formula,
-	        }
-	    }
-	});
 
 	const Regexes = {
 	    // 'Whitespace':/\s/g,
@@ -23384,6 +23364,10 @@
 	                }
 	                const end = this.previous().value;
 	                let cellRangeValues = this.fetchCellRange(`${start}:${end}`);
+	                // if it is only A1:A3 then throw ARRAYFORMULAERROR 
+	                if (this.current - 4 < 0) {
+	                    throw Error("ARRAYFORMULA");
+	                }
 	                return new Literal(cellRangeValues);
 	            }
 	            let value = this.fetchCellValue(start);
@@ -23443,7 +23427,7 @@
 	    fetchCellValue(key) {
 	        var _a, _b;
 	        if (this.cells[key]) {
-	            if (this.cells[key].type == TokenTypes.Number) {
+	            if (this.cells[key].type == CellType.Number) {
 	                return parseInt((_a = this.cells[key].value) === null || _a === void 0 ? void 0 : _a.toString());
 	            }
 	            return (_b = this.cells[key].value) === null || _b === void 0 ? void 0 : _b.toString();
@@ -23584,7 +23568,6 @@
 	        this.data = new Array();
 	        this.name = name;
 	        this.cells = {};
-	        this.interpreter = new Interpreter();
 	        this.data = [];
 	    }
 	    parseFormula(input) {
@@ -23594,7 +23577,8 @@
 	        const parser = new Parser(tokens);
 	        parser.cells = this.cells;
 	        const expression = parser.parse();
-	        const result = this.interpreter.interpret(expression);
+	        const interpreter = new Interpreter();
+	        const result = interpreter.interpret(expression);
 	        return result;
 	    }
 	    addCell(key, value) {
@@ -23648,7 +23632,7 @@
 	        return this.data;
 	    }
 	    addtoLocalStorage() {
-	        localStorage.setItem("sheetData", JSON.stringify(this.cells));
+	        localStorage.setItem(this.name, JSON.stringify(this.cells));
 	    }
 	    scan(line) {
 	        const scanner = new Scanner(line);
@@ -23671,7 +23655,18 @@
 	    renameSheet(oldName, newName) {
 	        let sheetExists = this.sheets.find(sheet => sheet.name == oldName);
 	        if (sheetExists) {
+	            if (newName in this.getSheetNames())
+	                return false;
 	            sheetExists.name = newName;
+	            return true;
+	        }
+	        return false;
+	    }
+	    deleteSheet(name) {
+	        let sheetExists = this.sheets.find(sheet => sheet.name == name);
+	        if (sheetExists) {
+	            let sheetIndex = this.sheets.indexOf(sheetExists);
+	            this.sheets.splice(sheetIndex, 1);
 	            return true;
 	        }
 	        return false;
@@ -23683,8 +23678,19 @@
 	        }
 	        return sheetNames;
 	    }
+	    removeDataKey() {
+	        // removing the 'data' because this is only for working with Datatable for the frontend
+	        let savedSheets = [];
+	        this.sheets.forEach(sheet => {
+	            let tempSheet = JSON.parse(JSON.stringify(sheet));
+	            delete tempSheet["data"];
+	            savedSheets.push(tempSheet);
+	        });
+	        return savedSheets;
+	    }
 	    save() {
-	        return JSON.stringify(this.sheets);
+	        let sheettoSave = this.removeDataKey();
+	        return JSON.stringify(sheettoSave);
 	    }
 	}
 

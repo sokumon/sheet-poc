@@ -40,7 +40,6 @@ class DataTable {
         this.initializeComponents();
         this.refreshonWindowResize();
 
-        this.initEngine()
         if (this.options.fullHeight) {
             this.makeFullheight();
         }
@@ -53,11 +52,6 @@ class DataTable {
         }
 
 
-    }
-
-    initEngine(){
-        this.sengine =  new Engine()
-        
     }
 
     initReactivity(){
