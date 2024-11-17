@@ -41,6 +41,7 @@ export default class CellManager {
         this.bindCopyCellContents();
         this.bindMouseEvents();
         // this.bindTreeEvents();
+        this.bindClearCells()
     }
 
     bindFocusCell() {
@@ -64,6 +65,19 @@ export default class CellManager {
                 this.deactivateEditing();
             }
         });
+    }
+    bindClearCells(){
+        this.keyboard.on('backspace' , () => {
+            if(this._selectedCells.length > 0){
+                let cellsToClear = []
+                for(let i=0; i < this._selectedCells.length ;i++){
+                    const index = $.data(this._selectedCells[i])
+                    this.updateCell(index.colIndex,index.rowIndex,"", true)
+                    cellsToClear.push(index.rowIndex, index.colIndex)
+                }
+                // TODO throw a custom event and then remove from sheet
+            }
+        })
     }
     bindKeyboardNav() {
         const focusLastCell = (direction) => {
