@@ -8,6 +8,7 @@ import Style from './style';
 import Keyboard from './keyboard';
 import TranslationManager from './translationmanager';
 import getDefaultOptions from './defaults';
+import AutoComplete from './autocomplete';
 
 let defaultComponents = {
     DataManager,
@@ -16,7 +17,8 @@ let defaultComponents = {
     RowManager,
     BodyRenderer,
     Style,
-    Keyboard
+    Keyboard,
+    AutoComplete
 };
 
 class DataTable {
@@ -133,7 +135,8 @@ class DataTable {
             RowManager,
             ColumnManager,
             CellManager,
-            BodyRenderer
+            BodyRenderer,
+            AutoComplete
         } = components;
 
         this.style = new Style(this);
@@ -143,6 +146,7 @@ class DataTable {
         this.columnmanager = new ColumnManager(this);
         this.cellmanager = new CellManager(this);
         this.bodyRenderer = new BodyRenderer(this);
+        this.autocomplete = new AutoComplete(this);
     }
 
     prepareDom() {

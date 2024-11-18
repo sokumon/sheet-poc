@@ -68,6 +68,10 @@ export default class CellManager {
     }
     bindClearCells(){
         this.keyboard.on('backspace' , () => {
+            if(this.$editingCell){
+                console.log("Editing cell")
+                return;
+            }
             if(this._selectedCells.length > 0){
                 let cellsToClear = []
                 for(let i=0; i < this._selectedCells.length ;i++){
@@ -623,6 +627,7 @@ export default class CellManager {
     }
 
     activateEditing($cell) {
+        this.keyboard.off("backspace")
         this.focusCell($cell);
         const {
             rowIndex,
@@ -691,6 +696,7 @@ export default class CellManager {
         if (!this.$editingCell) return;
         this.$editingCell.classList.remove('dt-cell--editing');
         this.$editingCell = null;
+        this.bindClearCells()
     }
 
     getEditor(colIndex, rowIndex, value, parent) {

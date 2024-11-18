@@ -23569,6 +23569,8 @@
 	        this.name = name;
 	        this.cells = {};
 	        this.data = [];
+	        this.cellStyles = {};
+	        this.sheetStyles = {};
 	    }
 	    parseFormula(input) {
 	        const scanner = new Scanner(input);
@@ -23596,6 +23598,9 @@
 	    }
 	    getCell(key) {
 	        return this.cells[key];
+	    }
+	    removeCell(key) {
+	        delete this.cells[key];
 	    }
 	    recalculate(key) {
 	        let cell = this.cells[key];
@@ -23639,9 +23644,22 @@
 	        scanner.scanTokens();
 	        return scanner.getTokens();
 	    }
+	    // StyleObject will be { "A1" : }
+	    addStyles(type, styleObject) {
+	        let targetStyles = type === "cell" ? this.cellStyles : this.sheetStyles;
+	        for (let key in styleObject) {
+	            console.log(styleObject[key]);
+	            if (targetStyles[key]) {
+	                Object.assign(targetStyles[key], styleObject[key]);
+	            }
+	            else {
+	                targetStyles[key] = styleObject[key];
+	            }
+	        }
+	    }
 	}
 
-	class WorkBook {
+	class Workbook {
 	    constructor(title) {
 	        this.title = title,
 	            this.sheets = [];
@@ -23692,6 +23710,9 @@
 	        let sheettoSave = this.removeDataKey();
 	        return JSON.stringify(sheettoSave);
 	    }
+	    getSheetByName(sheetName) {
+	        return this.sheets.find(sheet => sheet.name == sheetName);
+	    }
 	}
 
 	class Engine {
@@ -23699,8 +23720,27 @@
 	        this.formulas = formulas;
 	        this.argSuggestions = argSuggestions;
 	    }
-	    createWorkBook(title) {
-	        return new WorkBook(title);
+	    createWorkbook(title) {
+	        this.workbook = new Workbook(title);
+	        return this.workbook;
+	    }
+	    saveWorkbook() {
+	        // let workBookObj = {
+	        //     title : this.workbook.title,
+	        //     sheets: this.workbook.save()
+	        // }
+	        let workBookObj = this.workbook;
+	        workBookObj.sheets = workBookObj.removeDataKey();
+	        return JSON.stringify(workBookObj);
+	    }
+	    loadWorkbook(workbookString) {
+	        let workbookData = JSON.parse(workbookString);
+	        this.workbook = new Workbook(workbookData.title);
+	        this.workbook.sheets = workbookData.sheets;
+	        return this.workbook;
+	    }
+	    renameWorkbook(wbName) {
+	        this.workbook.title = wbName;
 	    }
 	}
 

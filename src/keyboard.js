@@ -55,6 +55,25 @@ export default class Keyboard {
             this.listeners[key].push(listener);
         });
     }
+
+    off(key, listener) {
+        const keys = key.split(',').map(k => k.trim());
+
+        keys.map(key => {
+            if (this.listeners[key]) {
+                if (listener) {
+                    // remove a specfic listner on the key
+                    const index = this.listeners[key].indexOf(listener);
+                    if (index !== -1) {
+                        this.listeners[key].splice(index, 1);
+                    }
+                } else {
+                    // remove them all on the key
+                    delete this.listeners[key];
+                }
+            }
+        });
+    }
 }
 
 export let keyCode = KEYCODES;

@@ -1,5 +1,5 @@
 <!-- include styles -->
-<link rel="stylesheet" href="./dist/frappe-datatable.min.css" />
+<link rel="stylesheet" href="./dist/frappe-datatable.css" />
 
 <!-- create the container element -->
     <div id="datatable">
@@ -39,7 +39,7 @@
 <!-- <script src="https://cdn.jsdelivr.net/npm/@formulajs/formulajs/lib/browser/formula.min.js"></script> -->
 <script src="./node_modules/sortablejs/Sortable.js"></script>
 <script src="/engine.js"></script>
-<script src="./dist/frappe-datatable.min.js"></script>
+<script src="./dist/frappe-datatable.js"></script>
 
 <!-- <script src="test.js"></script> -->
 
@@ -47,7 +47,7 @@
 <script >
 
 let sengine = new Engine()
-let workbook = sengine.createWorkBook("Untilted Spreadsheet")
+let workbook = sengine.createWorkbook("Untilted Spreadsheet")
 let sheetOne = workbook.addSheet()
 let data = sheetOne.initSheet()
 // loadData(data)
@@ -91,7 +91,9 @@ const datatable = new DataTable('#datatable', {
   fullHeight: true,
   inlineFilters: true,
   reactive: true,
-  cellHeight:25
+  cellHeight:25,
+  formulas:formulas,
+  suggestions: suggestions
 });
 
 let celltest = getCellfromA1("A1")
