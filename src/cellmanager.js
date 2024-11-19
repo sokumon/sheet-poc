@@ -24,12 +24,14 @@ export default class CellManager {
             'columnmanager',
             'rowmanager',
             'datamanager',
-            'keyboard'
+            'keyboard',
+            'autocomplete'
         ]);
         this.bindEvents();
         this.formulaSuggest = $('.formula-suggest');
         this.cellChoosingMode = false
-        this.cellContent = null
+        this.cellContent = {value: ""}; 
+        this.cellContent = new Proxy(this.cellContent ,this.autocomplete.autoCompletehandler)
         this.choosenCell = null
         this.prevChoosenCell = null
     }
@@ -733,6 +735,7 @@ export default class CellManager {
             this.instance.wrapper.dispatchEvent(editEvent)
         });
 
+        const that = this
         return {
             initValue(value) {
                 $input.focus();
@@ -743,6 +746,8 @@ export default class CellManager {
             },
             setValue(value) {
                 $input.value = value;
+
+                that.cellContent.value = value
             }
         };
     }

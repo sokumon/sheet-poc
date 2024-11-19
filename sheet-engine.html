@@ -8,7 +8,6 @@
 
     <!-- <button id="clear" onclick="clearSheet()">Clear</button> -->
     <button id="merge" onclick="mergeCells()">Merge</button>
-    <div class="formula-suggest"></div>
 
 <style>
     html, body {
@@ -26,12 +25,6 @@
     #merge{
         position: absolute;
         top : 10px
-    } 
-    .formula-suggest{
-        overflow-y: scroll;
-    }
-    .arg-suggest {
-        background-color: lightseagreen;
     }
 </style>
 
@@ -79,11 +72,6 @@ function loadData(data){
   return data
 }
 
-const hasKey = (obj, key) => 
-    Object.keys(obj).includes(key) ||
-    Object.values(obj)
-      .filter(it => typeof it === "object" && it !== null)
-      .some(it => hasKey(it, key));
 
 const datatable = new DataTable('#datatable', {
   columns: columns,
@@ -93,7 +81,8 @@ const datatable = new DataTable('#datatable', {
   reactive: true,
   cellHeight:25,
   formulas:formulas,
-  suggestions: suggestions
+  argSuggestion: suggestions,
+  scanner: sheetOne.scan
 });
 
 let celltest = getCellfromA1("A1")
@@ -448,6 +437,8 @@ datatable_wrapper.addEventListener("cellSubmit",function(event){
   sheetOne.addtoLocalStorage()
   let cell = sheetOne.getCell(key)
   editor = null
+  datatable.autocomplete.display("off")
+  datatable.stopCellChoosing()
 })
 
 datatable_wrapper.addEventListener("focusCell", function(event){
@@ -460,18 +451,7 @@ datatable_wrapper.addEventListener("focusCell", function(event){
 })
 datatable_wrapper.addEventListener("cellEditing",function(event){
     editor = event.detail
-    let value = editorProps.getValue()
-    if(value.charAt(0) === "="){
-        cellContent = editorProps.getValue()
-        if(datatable.getCellChoosen()){
-          suggestFormula(editor)
-        }else{
-          datatable.startCellChoosing()
-          suggestFormula(editor)
-        }
-    }else{
-        datatable.stopCellChoosing()
-    }
+    datatable.autocomplete.suggest()
 })
 
 datatable_wrapper.addEventListener("activateEditing", function(event){
@@ -495,116 +475,7 @@ datatable_wrapper.addEventListener("chooseCell",function(event){
   editorProps.setValue(`${cellContent}${key}`)
 })
 
-function suggestFormula(editor) {
-    let value = editor.value
-    if (value.length > 1) {
-        // display the ui for
-        let parentElementPosition = editor.parentElement.getBoundingClientRect();
-        let allAvalibleFormulas = Object.keys(formulas);
-        let searchTerm = editor.value.replace('=', '').toLowerCase().split("(")[0];
-        let searchRegex = new RegExp(`^${searchTerm}`,"i");
-        const matches = allAvalibleFormulas.filter(value => searchRegex.test(value));
-        // console.log(matches);
-        if (matches.length > 0) {
-            let tokens = sheetOne.scan(value.replace("=",""))
-            console.log(tokens)
-            let openBracket = tokens.find(token => token.type === 17)
-            let closeBracket = tokens.find(token=> token.type === 18)
-            if(closeBracket){
-              toggleFormulaSuggest(false)
-            }
-            console.log(openBracket)
-            if(openBracket){
-                formulaSuggest.style.width = "500px"
-                formulaSuggest.style.height = "20px"
-                let options = suggestions.filter(el => {
-                    return searchRegex.test(el.name)
-                })
-                console.log(options)
-                if(options.length > 0){
-                    console.log(value)
-                    console.log(options[0])
-                    createSuggestion(options[0])
-                    let noofCommas = tokens.find(token => token.type === 22)
-                    suggestArgs(value,noofCommas)
-                }
-            }else{
-              if(oldState){
-                formulaSuggest.style.width = oldState.width
-                formulaSuggest.style.height = oldState.height
-              }
-              let settings = {
-                  left: parentElementPosition.left,
-                  top: parentElementPosition.top,
-                  height: parentElementPosition.height
-              };
 
-              formulaSuggest.innerHTML = '';
-              toggleFormulaSuggest(true, settings);
-              matches.forEach(match =>{
-                  let formulaList = this.getFormula(match, formulas[match].desc);
-                  // add a click event listner for actaully choosing the suggestion
-                  formulaList.addEventListener('click', event =>{
-                      formulaChooser(event, editor);
-                  });
-                  formulaSuggest.appendChild(formulaList);
-              });
-              let style = getComputedStyle(formulaSuggest)
-              oldState = {
-                width: style.width,
-                height: style.height
-              }
-            }
-        } else {
-            formulaSuggest.innerHTML = '';
-            this.toggleFormulaSuggest(false);
-        }
-    } else {
-        formulaSuggest.innerHTML = '';
-        this.toggleFormulaSuggest(false);
-    }
-  }
-
-
-
-function toggleFormulaSuggest(show, settings) {
-  if (show) {
-            settings['display'] = 'block';
-            let formulaSuggestBoxPos = {
-                top: settings.top + settings.height,
-                left: settings.left,
-                display: 'block'
-            };
-            datatable.$.style(formulaSuggest, formulaSuggestBoxPos);
-        } else {
-            datatable.$.style(formulaSuggest, { display: 'none'});
-        }
-
-    }
-
-
-function formulaChooser(event, editor) {
-        cellContent = `=${formulas[event.target.id].completion}`;
-        editorProps.setValue(cellContent)
-}
-
-function getFormula(formulaName, formulaDesc) {
-        let div = document.createElement('div');
-        div.setAttribute('class', 'formula');
-        div.setAttribute('id', formulaName);
-        let name = document.createTextNode(formulaName);
-        div.appendChild(name);
-        let inside_div = document.createElement('div');
-        let para = document.createElement('p');
-        para.setAttribute('class', 'formula-description');
-        para.textContent = formulaDesc;
-        inside_div.appendChild(para);
-
-        let hr = document.createElement('hr');
-        inside_div.appendChild(hr);
-        div.appendChild(inside_div);
-        return div;
-}
 datatable_wrapper.addEventListener("paste", (event) => {
   console.log("hello")
   // if "text/html" in event.clipboardData.types

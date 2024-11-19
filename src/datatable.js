@@ -144,9 +144,10 @@ class DataTable {
         this.datamanager = new DataManager(this.options);
         this.rowmanager = new RowManager(this);
         this.columnmanager = new ColumnManager(this);
+        this.autocomplete = new AutoComplete(this);
         this.cellmanager = new CellManager(this);
         this.bodyRenderer = new BodyRenderer(this);
-        this.autocomplete = new AutoComplete(this);
+
     }
 
     prepareDom() {
