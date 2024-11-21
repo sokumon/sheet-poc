@@ -82,7 +82,8 @@ const datatable = new DataTable('#datatable', {
   cellHeight:25,
   formulas:formulas,
   argSuggestion: suggestions,
-  scanner: sheetOne.scan
+  scanner: sheetOne.scan,
+  layout: "fixed"
 });
 
 let celltest = getCellfromA1("A1")
@@ -458,22 +459,22 @@ datatable_wrapper.addEventListener("activateEditing", function(event){
     editorProps = event.detail
 })
 
-datatable_wrapper.addEventListener("selectCells",function(event){
-    selectedCells = event.detail.cells
-    let startCell = rowcolToA1(selectedCells[0][1],selectedCells[0][0])
+// datatable_wrapper.addEventListener("selectCells",function(event){
+//     selectedCells = event.detail.cells
+//     let startCell = rowcolToA1(selectedCells[0][1],selectedCells[0][0])
 
-    let endCell = rowcolToA1(selectedCells[selectedCells.length - 1][1],selectedCells[selectedCells.length - 1][0])
+//     let endCell = rowcolToA1(selectedCells[selectedCells.length - 1][1],selectedCells[selectedCells.length - 1][0])
 
-    if(editor){
-      editorProps.setValue(`${cellContent}${startCell}:${endCell}`)
-    }
-})
+//     if(editor){
+//       editorProps.setValue(`${cellContent}${startCell}:${endCell}`)
+//     }
+// })
 
-datatable_wrapper.addEventListener("chooseCell",function(event){
-  let choosenCell = event.detail.cell;
-  let key = rowcolToA1(choosenCell[1],choosenCell[0])
-  editorProps.setValue(`${cellContent}${key}`)
-})
+// datatable_wrapper.addEventListener("chooseCell",function(event){
+//   let choosenCell = event.detail.cell;
+//   let key = rowcolToA1(choosenCell[1],choosenCell[0])
+//   editorProps.setValue(`${cellContent}${key}`)
+// })
 
 
 datatable_wrapper.addEventListener("paste", (event) => {

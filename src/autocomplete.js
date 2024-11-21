@@ -7,41 +7,25 @@ export default class AutoComplete{
         linkProperties(this, this.instance, [
             'options', 'datamanager', 'columnmanager', 'cellmanager',
             'header', 'footer', 'bodyScrollable', 'datatableWrapper',
-            'getColumn', 'bodyRenderer'
+            'getColumn', 'bodyRenderer','observer'
         ]);
 
         this.avaliableFormulas = this.options.formulas
         this.allFormulas = Object.keys(this.avaliableFormulas)
         this.argSuggestion = this.options.argSuggestion
+        this.observer.subscribe(this.handleValueUpdate.bind(this))
         this.formulas = []
         const that = this
-        this.autoCompletehandler = {
-            get(target, key) {
-              if (key == 'isProxy')
-                return true;
-          
-              const prop = target[key];
-          
-              if (typeof prop == 'undefined')
-                return;
-          
-              if (!prop.isProxy && typeof prop === 'object')
-                target[key] = new Proxy(prop, handler);
-          
-              return target[key];
-            },
-            set(target, key, value) {
-          
-              target[key] = value;
-          
-              that.suggest()
-              return true;
-            }
-          };
+        this.confirmedValue = null
         this.create()
         this.choosenFormula = null
+        this.tokens = []
     }
 
+
+    handleValueUpdate(newValue){
+        this.suggest()
+    }
     create(){
         this.formulaSuggest = document.createElement('div')
         this.formulaSuggest.classList.add("formula-suggest")
@@ -106,17 +90,21 @@ export default class AutoComplete{
         if(!this.cellmanager.currentCellEditor) return;
         this.changeDimensions("500px", "300px")
         let value = this.cellmanager.currentCellEditor.getValue()
-        let cellContent = this.cellmanager.cellContent.value
+        // let cellContent = this.cellmanager.cellContent.value
         if(value.charAt(0) === "="){
             if(!this.instance.getCellChoosen()){
                 this.instance.startCellChoosing()
             }
             if(value.length > 1){
-                // =S
                 value = value.replace("=","")
-                cellContent = value
     
                 this.tokens = this.options.scanner(value)
+                // if(this.tokens.length > 1){
+                //     if(!this.tokens[this.tokens.length -1].type == 3){
+
+                //     }
+                // }
+
 
                 if(this.hasSelected){
                     this.choosenFormula = this.getFormulaName()
@@ -125,19 +113,25 @@ export default class AutoComplete{
                     return;
                 }
                 
-    
-                this.display("on")
                 this.search(value)
-                this.renderOptions()
-                if(this.hasOpenBracket()){
-                    this.choosenFormula = this.getFormulaName()
-                    console.log("Choosen Formula", this.choosenFormula)
-                    this.createArgSuggestion(this.choosenFormula)
-                    this.suggestArgs()
-                    this.choosenFormula = null
+                if(this.formulas.length > 1){
+                    this.display("on")
+                
+                    this.renderOptions()
+                    if(this.hasOpenBracket()){
+                        this.writeConfirmedValue(value)
+                        this.choosenFormula = this.getFormulaName()
+                        // console.log("Choosen Formula", this.choosenFormula)
+                        this.createArgSuggestion(this.choosenFormula)
+                        this.suggestArgs()
+                        this.choosenFormula = null
+                    }else{
+                        // console.log("hello")
+                        this.changeDimensions("500px", "300px")
+                    }
                 }else{
-                    console.log("hello")
-                    this.changeDimensions("500px", "300px")
+                    // no formulas found
+                    this.display("off")
                 }
             }
         }else{
@@ -146,6 +140,75 @@ export default class AutoComplete{
         }
     }
 
+    updateEditor(newValue){
+        let currentTokens = this.tokens 
+        let currentValue = this.cellmanager.currentCellEditor.getValue()
+        let lastToken = null
+
+        if(currentTokens){
+            lastToken = this.tokens[this.tokens.length - 1]
+        }
+
+        
+        let incomingTokens = this.options.scanner(newValue)
+        let newEditorValue = null
+        // if this its a completion SUM( 
+        if(incomingTokens[0].type == 15){
+            newEditorValue = currentValue.charAt(0) + newValue
+            this.cellmanager.currentCellEditor.setValue(newEditorValue)
+            return;
+        }
+
+        // handling Cell 
+        if(incomingTokens[0].type == 3){
+            console.log("last Token", lastToken)
+            if(currentTokens.length < 1){
+                newEditorValue  = currentValue.charAt(0) + newValue
+                this.cellmanager.currentCellEditor.setValue(newEditorValue)
+                return;
+            }
+            if(lastToken.type == 3){
+                if(this.hasOpenBracket()){
+                    console.log("Serious Business")
+                    newEditorValue  = currentValue.charAt(0) + this.stringfyTokens() + newValue
+                    this.cellmanager.currentCellEditor.setValue(newEditorValue)
+                    return
+                }
+                newEditorValue  = currentValue.charAt(0) + newValue
+                this.cellmanager.currentCellEditor.setValue(newEditorValue)
+
+            }
+
+            if(lastToken.type == 22){
+                newEditorValue  = currentValue.charAt(0) + this.stringfyTokens() + newValue
+                this.cellmanager.currentCellEditor.setValue(newEditorValue)
+            }
+            if(lastToken.type == 17){
+                newEditorValue =  currentValue + newValue
+                this.cellmanager.currentCellEditor.setValue(newEditorValue)
+            }
+    
+        }
+
+    }
+
+    stringfyTokens(){
+        let finalString = ""
+        let bracketIndex = this.tokens.indexOf(this.hasOpenBracket())
+        console.log(this.hasCommas())
+        let commas = this.hasCommas()
+        let maxIndex = bracketIndex;
+        if (commas.length > 0) {
+            let lastComma = commas[commas.length - 1];
+            let lastCommaIndex = this.tokens.indexOf(lastComma)
+            maxIndex = Math.max(bracketIndex, lastCommaIndex);
+        }
+
+        for (let i = 0; i <= maxIndex; i++) {
+            finalString += this.tokens[i].value;
+        }
+        return finalString
+    }
     hasOpenBracket(){
         return this.tokens.find(token => token.type === 17)
     }
@@ -154,17 +217,26 @@ export default class AutoComplete{
         return this.tokens.find(token => token.type === 18)
     }
 
-    noOfCommas(){
+    hasCommas(){
         return this.tokens.filter(token => token.type === 22)
     }
 
+    writeConfirmedValue(value){
+        let lastToken = this.tokens[this.tokens.length - 1]
+        // console.log(lastToken)
+        if(lastToken.type === 17 || lastToken){
+            this.confirmedValue = value
+        }
+    }
     selectOption(formulaName){
         this.choosenFormula = formulaName
         this.hasSelected = true
-        let cellContent = this.instance.cellmanager.cellContent.value
+        let cellContent = this.cellmanager.currentCellEditor.getValue()
         let formulaCompletion = this.avaliableFormulas[formulaName].completion
-        this.cellmanager.currentCellEditor.setValue(`=${cellContent}${formulaCompletion}`)
-        cellContent = `=${cellContent}${formulaCompletion}`
+        // this.cellmanager.currentCellEditor.setValue(`=${formulaCompletion}`)
+        console.log(`${formulaCompletion}`)
+        this.updateEditor(`${formulaCompletion}`)
+        // cellContent = `=${cellContent}${formulaCompletion}`
     }
 
     createArgSuggestion(formulaName){
@@ -177,7 +249,7 @@ export default class AutoComplete{
 
         let finalSuggestion = this.filterArgSuggestion(formulaName)
         finalSuggestion.parameters.forEach((param, i) => {
-            console.log(param, i);
+            // console.log(param, i);
             const span = document.createElement("span");
             span.innerText = param.name;
             
@@ -198,7 +270,7 @@ export default class AutoComplete{
         return  this.tokens.find(token => token.type === 15).value
     }
     suggestArgs(){
-        let commas = this.noOfCommas()
+        let commas = this.hasCommas()
         this.changeDimensions("500px","30px")
         let argContainer = this.formulaSuggest.children[0].children
         let args = Array.prototype.slice.call(argContainer)
@@ -206,6 +278,7 @@ export default class AutoComplete{
         argContainer[-2 + commas.length + 2].classList.add("arg-suggest")
         if(this.hasCloseBracket()){
             this.display("off")
+            this.hasSelected = false
         }
 
     }

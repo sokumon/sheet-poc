@@ -9,6 +9,8 @@ import Keyboard from './keyboard';
 import TranslationManager from './translationmanager';
 import getDefaultOptions from './defaults';
 import AutoComplete from './autocomplete';
+import CellSelection from './cellSelection';
+import { ContentOberserver } from './contentobserver';
 
 let defaultComponents = {
     DataManager,
@@ -18,7 +20,9 @@ let defaultComponents = {
     BodyRenderer,
     Style,
     Keyboard,
-    AutoComplete
+    AutoComplete,
+    CellSelection,
+    ContentOberserver
 };
 
 class DataTable {
@@ -129,14 +133,16 @@ class DataTable {
     initializeComponents() {
         let components = Object.assign({}, defaultComponents, this.options.overrideComponents);
         let {
-            // Style,
+            Style,
             Keyboard,
             DataManager,
             RowManager,
             ColumnManager,
             CellManager,
             BodyRenderer,
-            AutoComplete
+            AutoComplete,
+            CellSelection,
+            ContentOberserver
         } = components;
 
         this.style = new Style(this);
@@ -144,9 +150,12 @@ class DataTable {
         this.datamanager = new DataManager(this.options);
         this.rowmanager = new RowManager(this);
         this.columnmanager = new ColumnManager(this);
+        this.observer = new ContentOberserver(this)
         this.autocomplete = new AutoComplete(this);
         this.cellmanager = new CellManager(this);
         this.bodyRenderer = new BodyRenderer(this);
+        this.cellselection = new CellSelection(this)
+
 
     }
 
@@ -321,15 +330,15 @@ class DataTable {
     }
 
     startCellChoosing(){
-        this.cellmanager.cellChoosingMode = true
+        this.cellselection.cellChoosingMode = true
     }
 
     getCellChoosing(){
-        return this.cellmanager.cellChoosingMode
+        return this.cellselection.cellChoosingMode
     }
 
     stopCellChoosing(){
-        this.cellmanager.cellChoosingMode = false
+        this.cellselection.cellChoosingMode = false
     }
 
     getCurrentCellEditor(){

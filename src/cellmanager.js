@@ -9,8 +9,6 @@ import {
 } from './utils';
 import $ from './dom';
 import icons from './icons';
-// import {formulas} from './formula';
-// import {parse} from './parser'
 
 export default class CellManager {
     constructor(instance) {
@@ -25,13 +23,13 @@ export default class CellManager {
             'rowmanager',
             'datamanager',
             'keyboard',
-            'autocomplete'
+            'autocomplete',
+            'cellselection',
+            'observer'
         ]);
         this.bindEvents();
         this.formulaSuggest = $('.formula-suggest');
-        this.cellChoosingMode = false
-        this.cellContent = {value: ""}; 
-        this.cellContent = new Proxy(this.cellContent ,this.autocomplete.autoCompletehandler)
+     
         this.choosenCell = null
         this.prevChoosenCell = null
     }
@@ -54,7 +52,7 @@ export default class CellManager {
         this.$editingCell = null;
 
         $.on(this.bodyScrollable, 'dblclick', '.dt-cell', (e, cell) => {
-            if(this.cellChoosingMode) return;
+            if(this.cellselection.cellChoosingMode) return;
             this.activateEditing(cell);
         });
 
@@ -203,14 +201,9 @@ export default class CellManager {
         let mouseDown = null;
 
         $.on(this.bodyScrollable, 'mousedown', '.dt-cell', (e) => {
-            // if(this._selectedCells){
-            //     console.log("mouse down after selection")
-            //     // catch up with selected cells
-
-            // }
             mouseDown = true;
-            if(this.cellChoosingMode){
-                this.chooseCell($(e.delegatedTarget))
+            if(this.cellselection.cellChoosingMode){
+                this.cellselection.selectCell($(e.delegatedTarget))
             }else{
                 this.focusCell($(e.delegatedTarget));       
             }
@@ -218,13 +211,14 @@ export default class CellManager {
 
         $.on(this.bodyScrollable, 'mouseup', () => {
             mouseDown = false;
-            this.selectedCells = []
         });
 
         const selectArea = (e) => {
             if (!mouseDown) return;
-            if(this.cellChoosingMode){
-                this.cellRangeSelection($(e.delegatedTarget))
+            if(this.cellselection.cellChoosingMode){
+                if(this.cellselection.selectedCells) this.cellselection.cleanup(this.cellselection.selectedCells)
+                this.cellselection.groupSelectCells($(e.delegatedTarget))
+
             }else{
                 this.selectArea($(e.delegatedTarget));
             }
@@ -233,7 +227,7 @@ export default class CellManager {
 
         $.on(this.bodyScrollable, 'mousemove', '.dt-cell', throttle(selectArea, 50));
     }
-
+// 
     bindTreeEvents() {
         $.on(this.bodyScrollable, 'click', '.dt-tree-node__toggle', (e, $toggle) => {
             const $cell = $.closest('.dt-cell', $toggle);
@@ -273,7 +267,7 @@ export default class CellManager {
         if(this.choosenCell){
             if($cell !== this.choosenCell){
                 if(this._selectedCells.length > 1){
-                    this.cellRangeCleanUp(this._selectedCells)
+                    this.cellselection.cleanup(this._selectedCells)
                     this._selectedCells = []
                 }else{
                     this.choosenCell = null
@@ -312,7 +306,7 @@ export default class CellManager {
             return;
         }
 
-        // if (this.currentCellEditor && this.cellChoosingMode) {
+        // if (this.currentCellEditor && this.cellselection.cellChoosingMode) {
         //     if($cell !== this.$editingCell){
         //         let cellDetails = `=${(String.fromCharCode(64 + parseInt(colIndex)))}${parseInt(rowIndex) + 1}`;
         //         this.currentCellEditor.setValue(cellDetails);
@@ -330,7 +324,7 @@ export default class CellManager {
             this.scrollToCell($cell);
         }
 
-        if (!this.cellChoosingMode) {
+        if (!this.cellselection.cellChoosingMode) {
             this.deactivateEditing();
         }
 
@@ -344,7 +338,7 @@ export default class CellManager {
         }
 
         this.$focusedCell = $cell;
-        this.cellChoosingMode ? $cell.classList.add('dt-cell--cellSelected') : $cell.classList.add('dt-cell--focus');
+        this.cellselection.cellChoosingMode ? $cell.classList.add('dt-cell--cellSelected') : $cell.classList.add('dt-cell--focus');
         $cell.classList.add('dt-cell--focus');
         
 
@@ -466,17 +460,20 @@ export default class CellManager {
         let rowIndex2 = parseInt(cell2.rowIndex)
         let colIndex2 = parseInt(cell2.colIndex)
         
+        let direction = ""
         if(rowIndex1 == rowIndex2){
-            return "Horizontal"
+            direction = "Horizontal"
         }else if(colIndex1 == colIndex2){
-            return "Vertical"
+            direction = "Vertical"
         }else{
-            return { 
+            direction ={ 
                 dir:"Diagonal",
                 width:Math.abs(colIndex2- colIndex1),
                 height: Math.abs(rowIndex2 -rowIndex1)
             }
         }
+        this.direction = direction
+        return direction
     }
     _selectArea($cell1, $cell2) {
         if ($cell1 === $cell2) return false;
@@ -487,7 +484,7 @@ export default class CellManager {
         // if($cell2 === this.$focusedCell) return false;
 
         const cells = this.getCellsInRange($cell1, $cell2);
-        let direction = this.findSelectionDirection($cell1,$cell2)
+        let direction = this.cellselection.findDirection($cell1,$cell2)
         const selectEvent = new CustomEvent("selectCells",{
             detail: {
                 cellRange: $cell1,
@@ -495,6 +492,9 @@ export default class CellManager {
                 direction: direction
             }
         })
+        if(this.$editingCell){
+            this.cellselection.addRangetoCell(cells)
+        }
 
         this.instance.wrapper.dispatchEvent(selectEvent)
 
@@ -502,32 +502,15 @@ export default class CellManager {
 
         this.clearSelection();
         this._selectedCells = cells.map(index => this.getCell$(...index));
+
+        this.cellselection.selectedCells = this._selectedCells
+
         // if(this._selectedCells.find(cell => cell === this.$editingCell)) return;
-        this.cellRangeCleanUp(this._selectedCells)
+        this.cellselection.cleanup(this.cellselection.selectedCells)
 
         requestAnimationFrame(() => {
-            if(this.cellChoosingMode) {
-                if(typeof direction !== "object"){
-                    this._selectedCells[0].classList.add(`dt-cell--cellRange-${direction}-Top`)
-                    this._selectedCells[this._selectedCells.length -1].classList.add(`dt-cell--cellRange-${direction}-Bottom`)
-                    this._selectedCells.slice(1,-1).map(cell => cell.classList.add(`dt-cell--cellRange-${direction}`))
-                }else{
-                    let corners = this.findCorners(this._selectedCells,direction.width,direction.height)
-                    let cornerDirs = ["Top","Right","Bottom","Left"]
-                    corners.forEach((corner,index) =>{
-                        corner.classList.add(`dt-cell--cellRange-DiagonalCorner-${cornerDirs[index]}`)
-                    })
-                    this._selectedCells.slice(1,direction.width).map(cell => cell.classList.add("dt-cell--cellRange-Diagonal-Top"))
-                    this._selectedCells.slice((this.selectedCells.length-1)- direction.width + 1, this.selectedCells.length-1).map(cell => cell.classList.add("dt-cell--cellRange-Diagonal-Bottom"))
-                    for (let index = direction.width + 1; index < this._selectedCells.length; index = index + (direction.width + 1) ) {
-                        if(index-1 > direction.width ){
-                            this._selectedCells[index - 1].classList.add("dt-cell--cellRange-Diagonal-Right")
-                        }
-                        if(index < this._selectedCells.length - direction.width - 1){
-                            this._selectedCells[index].classList.add("dt-cell--cellRange-Diagonal-Left")
-                        }
-                    }
-                }
+            if(this.cellselection.cellChoosingMode) {
+                this.cellselection.drawGroupCells()
             }else{
                 // this was being called after cellSelection will checkout the issue later
                 this._selectedCells.map($cell => $cell.classList.add('dt-cell--highlight'));
@@ -546,6 +529,7 @@ export default class CellManager {
 
         return [top,right,bottom,left]
     }
+
     cellRangeCleanUp(cells){
         let direction = ["Vertical", "Horizontal"]
         let cornerDirs = ["Top","Right","Bottom","Left"]
@@ -684,10 +668,6 @@ export default class CellManager {
     }
 
     deactivateEditing(submitValue = true) {
-        if(this.choosenCell){
-            this.choosenCell.classList.remove("dt-cell--cellSelected")
-            this.cellRangeCleanUp(this._selectedCells)
-        }
         if (submitValue) {
             this.submitEditing();
         }
@@ -729,10 +709,11 @@ export default class CellManager {
         });
 
         $.on($input, 'input', '.dt-input', (e, editorElement) => {
-            const editEvent = new CustomEvent("cellEditing",{
-                detail: editorElement
-            })
-            this.instance.wrapper.dispatchEvent(editEvent)
+            this.observer.notify($input.value)
+            // const editEvent = new CustomEvent("cellEditing",{
+            //     detail: editorElement
+            // })
+            // this.instance.wrapper.dispatchEvent(editEvent)
         });
 
         const that = this
@@ -746,8 +727,7 @@ export default class CellManager {
             },
             setValue(value) {
                 $input.value = value;
-
-                that.cellContent.value = value
+                that.observer.notify(value)
             }
         };
     }
@@ -815,7 +795,7 @@ export default class CellManager {
                 });
             }
         }
-        this.choosenCell = null
+        this.cellselection.reset()
         this._selectedCells = null
         this.currentCellEditor = null;
         return promise;
