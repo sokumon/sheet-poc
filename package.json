@@ -18,7 +18,8 @@
     "semantic-release": "semantic-release",
     "lint": "eslint src",
     "lint-and-build": "yarn lint && yarn build",
-    "commit": "npx git-cz"
+    "commit": "npx git-cz",
+    "sheets": "cp dist/frappe-datatable.min.js ../new-bench/apps/sheets/frontend/src && cp dist/frappe-datatable.min.css ../new-bench/apps/sheets/frontend/src && cp node_modules/sortablejs/Sortable.js ../new-bench/apps/sheets/frontend/src"
   },
   "files": [
     "dist",

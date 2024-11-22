@@ -11,6 +11,7 @@ import getDefaultOptions from './defaults';
 import AutoComplete from './autocomplete';
 import CellSelection from './cellSelection';
 import { ContentOberserver } from './contentobserver';
+import DrawManager from './drawmanager'
 
 let defaultComponents = {
     DataManager,
@@ -22,7 +23,8 @@ let defaultComponents = {
     Keyboard,
     AutoComplete,
     CellSelection,
-    ContentOberserver
+    ContentOberserver,
+    DrawManager
 };
 
 class DataTable {
@@ -142,7 +144,8 @@ class DataTable {
             BodyRenderer,
             AutoComplete,
             CellSelection,
-            ContentOberserver
+            ContentOberserver,
+            DrawManager
         } = components;
 
         this.style = new Style(this);
@@ -155,6 +158,7 @@ class DataTable {
         this.cellmanager = new CellManager(this);
         this.bodyRenderer = new BodyRenderer(this);
         this.cellselection = new CellSelection(this)
+        this.drawmanager = new DrawManager(this)
 
 
     }

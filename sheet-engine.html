@@ -1,5 +1,5 @@
 <!-- include styles -->
-<link rel="stylesheet" href="./dist/frappe-datatable.css" />
+<link rel="stylesheet" href="./dist/frappe-datatable.min.css" />
 
 <!-- create the container element -->
     <div id="datatable">
@@ -7,7 +7,11 @@
     </div>
 
     <!-- <button id="clear" onclick="clearSheet()">Clear</button> -->
-    <button id="merge" onclick="mergeCells()">Merge</button>
+    <button id="merge" onclick="leftAlignHandler.click('left')">Align L</button>
+    <button id="align" onclick="leftAlignHandler.click('left')">Merge</button>
+    <button id="bold" onclick="textDecorationHandler.click('bold')">Bold</button>
+    <button id="italic" onclick="textDecorationHandler.click('italic')">Italic</button>
+    <button id="underline" onclick="textDecorationHandler.click('underline')">Underline</button>
 
 <style>
     html, body {
@@ -22,9 +26,30 @@
         position: absolute;
         top : 100px
     } 
+    #align{
+      position: absolute;
+      right: 10px;
+      bottom:50px;
+    }
+    #bold{
+      position: absolute;
+      right: 10px;
+      bottom:100px;
+    }
+    #italic{
+      position: absolute;
+      right: 10px;
+      bottom:150px;
+    }
+    #underline{
+      position: absolute;
+      right: 10px;
+      bottom:200px;
+    }
     #merge{
         position: absolute;
-        top : 10px
+        right: 10px;
+        bottom:20px;
     }
 </style>
 
@@ -32,7 +57,7 @@
 <!-- <script src="https://cdn.jsdelivr.net/npm/@formulajs/formulajs/lib/browser/formula.min.js"></script> -->
 <script src="./node_modules/sortablejs/Sortable.js"></script>
 <script src="/engine.js"></script>
-<script src="./dist/frappe-datatable.js"></script>
+<script src="./dist/frappe-datatable.min.js"></script>
 
 <!-- <script src="test.js"></script> -->
 
@@ -83,9 +108,24 @@ const datatable = new DataTable('#datatable', {
   formulas:formulas,
   argSuggestion: suggestions,
   scanner: sheetOne.scan,
-  layout: "fixed"
 });
 
+let leftAlignHandler = datatable.drawmanager.supportedStyles.textAlign
+let textDecorationHandler = datatable.drawmanager.supportedStyles.textDecoration
+
+datatable_wrapper.addEventListener("addStyle", function(event){
+      console.log("Style added ", event.detail)
+      // talk to sheet engine
+      let styleDetail = event.detail.styleData
+
+
+      let cellStyles = {}
+      cellStyles[styleDetail.cell] = {}
+      cellStyles[styleDetail.cell][styleDetail.type] = styleDetail.value
+      console.log(cellStyles)
+      sheetOne.addStyles("cell",cellStyles)
+      datatable.drawmanager.draw(sheetOne.cellStyles, sheetOne.sheetStyles,"draw")
+})
 let celltest = getCellfromA1("A1")
 let cellWidth = parseInt(getComputedStyle(celltest).width)
 
@@ -329,6 +369,7 @@ function drawStyles(){
         let cells = fetchMergeCells(startCells[i],styles[startCells[i]].merged.end)
         drawMergedCells(cells)
       }else if (styles[startCells[i]].textAlign){
+        debugger;
         alignCell(startCells[i],styles[startCells[i]].textAlign)
       }else if (styles[startCells[i]].textDecoration){
         decorateCell(startCells[i],styles[startCells[i]].textDecoration)
@@ -433,6 +474,7 @@ datatable_wrapper.addEventListener("cellSubmit",function(event){
 
   sheetOne.flush()
   datatable.refresh()
+  datatable.drawmanager.draw(sheetOne.cellStyles, sheetOne.sheetStyles,"redraw")
   drawStyles()
   // datatable.cellmanager.updateCell(parseInt(event.detail.colIndex), parseInt(event.detail.rowIndex),data[parseInt(event.detail.rowIndex)][parseInt(event.detail.colIndex) -1], true)
   sheetOne.addtoLocalStorage()
